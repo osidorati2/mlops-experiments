@@ -1,0 +1,12 @@
+.venv
+.idea
+.git
+__pycache__
+*.pyc
+.DS_Store
+._*
+__MACOSX
+results
+dist
+*.zip
+*.tar.gz
