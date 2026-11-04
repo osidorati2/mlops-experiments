@@ -30,3 +30,7 @@ def conn() -> sqlite3.Connection:
     db.init_schema(conn)
     yield conn
     conn.close()
+
+
+def count_rows(conn: sqlite3.Connection, table: str) -> int:
+    return conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]

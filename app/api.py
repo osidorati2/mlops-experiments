@@ -1,17 +1,16 @@
 """HTTP-слой: принимает запросы, зовёт сервис, мапит доменные ошибки в коды ответа."""
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 
-from app.errors import InvalidImageError
-from app.image_validation import load_image
-from app.schemas import HistoryItemResponse
+from app.errors import InvalidImageError, PredictionError, StorageError
+from app.schemas import HistoryItemResponse, PredictResponse
 from app.service import ClassificationService
 
 router = APIRouter()
 
 
-def get_service() -> ClassificationService:
+def get_service(request: Request) -> ClassificationService:
     """Зависимость FastAPI; в тестах подменяется через app.dependency_overrides."""
-    ...
+    return request.app.state.service
 
 
 @router.get("/health")
@@ -19,15 +18,23 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-# TODO: после БД перейти на service.classify и PredictResponse (image_id, prediction_id).
-@router.post("/predict")
-async def predict(file: UploadFile, request: Request) -> dict:
+# Обычный def: FastAPI выполнит его в пуле потоков, и SQLite не заблокирует event loop.
+@router.post("/predict", response_model=PredictResponse, response_model_by_alias=True)
+def predict(file: UploadFile, service: ClassificationService = Depends(get_service)):
     try:
-        image = load_image(await file.read())
-        prediction = request.app.state.predictor.predict(image)
-        return {"class": prediction.label, "model_version": prediction.model_version}
+        result = service.classify(file.filename or "", file.file.read())
     except InvalidImageError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
+    except PredictionError:
+        raise HTTPException(status_code=500, detail="Prediction failed") from None
+    except StorageError:
+        raise HTTPException(status_code=500, detail="Failed to save result") from None
+    return PredictResponse(
+        image_id=result.image_id,
+        prediction_id=result.prediction_id,
+        label=result.label,
+        model_version=result.model_version,
+    )
 
 
 @router.get("/predictions", response_model=list[HistoryItemResponse], response_model_by_alias=True)
