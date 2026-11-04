@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.idea/
+data/
+experiments/lab01/results/
+*.zip
+*.egg-info/
