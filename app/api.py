@@ -1,5 +1,5 @@
 """HTTP-слой: принимает запросы, зовёт сервис, мапит доменные ошибки в коды ответа."""
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 
 from app.schemas import HistoryItemResponse, PredictResponse
 from app.service import ClassificationService
@@ -19,9 +19,9 @@ def health() -> dict:
 
 @router.post("/predict", response_model=PredictResponse, response_model_by_alias=True)
 async def predict(file: UploadFile, service: ClassificationService = Depends(get_service)):
-    ...
+    raise HTTPException(status_code=501, detail="Not implemented yet")
 
 
 @router.get("/predictions", response_model=list[HistoryItemResponse], response_model_by_alias=True)
 def predictions(service: ClassificationService = Depends(get_service)):
-    ...
+    raise HTTPException(status_code=501, detail="Not implemented yet")
