@@ -20,3 +20,10 @@ class StubPredictor:
 
     def predict(self, image: Image.Image) -> Prediction:
         return Prediction(label="cat", model_version="stub-v1")
+
+
+def build_predictor(name: str) -> Predictor:
+    """Выбор реализации по имени из конфига; новую модель добавляем сюда."""
+    if name == "stub":
+        return StubPredictor()
+    raise ValueError(f"Unknown predictor: {name!r}")

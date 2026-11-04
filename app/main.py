@@ -1,12 +1,15 @@
 """Точка сборки: создаёт БД, предсказатель, сервис и FastAPI-приложение."""
 from fastapi import FastAPI
 
+from app import config
 from app.api import router
+from app.predictor import Predictor, build_predictor
 
 
-def create_app() -> FastAPI:
+def create_app(predictor: Predictor | None = None) -> FastAPI:
     """Единственное место, где выбирается реализация Predictor (заглушка/модель)."""
     app = FastAPI(title="Image classifier")
+    app.state.predictor = predictor or build_predictor(config.PREDICTOR)
     app.include_router(router)
     return app
 
