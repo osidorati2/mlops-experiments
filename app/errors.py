@@ -2,7 +2,7 @@
 
 
 class InvalidImageError(Exception):
-    """Файл пустой или не читается как изображение → 400/422."""
+    """Файл пустой или не читается как изображение → 400."""
 
 
 class PredictionError(Exception):

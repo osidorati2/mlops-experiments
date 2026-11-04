@@ -1,7 +1,9 @@
 """HTTP-слой: принимает запросы, зовёт сервис, мапит доменные ошибки в коды ответа."""
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 
-from app.schemas import HistoryItemResponse, PredictResponse
+from app.errors import InvalidImageError
+from app.image_validation import load_image
+from app.schemas import HistoryItemResponse
 from app.service import ClassificationService
 
 router = APIRouter()
@@ -17,9 +19,15 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-@router.post("/predict", response_model=PredictResponse, response_model_by_alias=True)
-async def predict(file: UploadFile, service: ClassificationService = Depends(get_service)):
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+# TODO: после БД перейти на service.classify и PredictResponse (image_id, prediction_id).
+@router.post("/predict")
+async def predict(file: UploadFile, request: Request) -> dict:
+    try:
+        image = load_image(await file.read())
+        prediction = request.app.state.predictor.predict(image)
+        return {"class": prediction.label, "model_version": prediction.model_version}
+    except InvalidImageError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
 
 @router.get("/predictions", response_model=list[HistoryItemResponse], response_model_by_alias=True)
