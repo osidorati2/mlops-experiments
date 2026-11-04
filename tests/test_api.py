@@ -1,4 +1,7 @@
 """TestClient: /health, /predict, /predictions и коды ошибок через dependency_overrides."""
+import sqlite3
+from contextlib import closing
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -55,12 +58,28 @@ def test_predict_invalid_file_returns_400(data):
     assert "detail" in response.json()
     assert called == []  # предсказатель не вызывался
     assert count_rows(app.state.db, "images") == 0
+    assert count_rows(app.state.db, "predictions") == 0
 
 
 def test_predict_without_file_returns_422():
     response = TestClient(create_app()).post("/predict")
 
     assert response.status_code == 422
+
+
+def test_predict_saves_linked_records_in_real_sqlite(tmp_path, png_bytes):
+    db_path = tmp_path / "app.db"
+    client = TestClient(create_app(db_path=str(db_path)))
+
+    body = client.post("/predict", files={"file": ("cat.png", png_bytes, "image/png")}).json()
+
+    # Отдельное соединение видит только закоммиченные данные — так проверяем, что запись реально сохранена.
+    with closing(sqlite3.connect(db_path)) as conn:
+        rows = conn.execute(
+            "SELECT images.id, images.filename, predictions.id, predictions.class, predictions.model_version"
+            " FROM predictions JOIN images ON images.id = predictions.image_id"
+        ).fetchall()
+    assert rows == [(body["image_id"], "cat.png", body["prediction_id"], "cat", "stub-v1")]
 
 
 def test_predict_broken_predictor_returns_500_and_saves_nothing(png_bytes):
@@ -88,7 +107,8 @@ def test_predict_db_failure_returns_500_and_rolls_back(png_bytes):
 
     assert response.status_code == 500
     assert response.json() == {"detail": "Failed to save result"}
-    assert count_rows(app.state.db, "images") == 0
+    assert count_rows(app.state.db, "images") == 0  # откатилась вместе с predictions
+    assert count_rows(app.state.db, "predictions") == 0
 
 
 def test_history_empty():
@@ -98,19 +118,19 @@ def test_history_empty():
     assert response.json() == []
 
 
-def test_history_contains_saved_prediction(png_bytes):
+def test_history_returns_saved_results_with_filenames(png_bytes):
     client = TestClient(create_app())
-    saved = client.post("/predict", files={"file": ("cat.png", png_bytes, "image/png")}).json()
+    saved = [
+        client.post("/predict", files={"file": (name, png_bytes, "image/png")}).json()
+        for name in ("cat.png", "dog.png")
+    ]
 
     response = client.get("/history")
 
     assert response.status_code == 200
-    [item] = response.json()
-    assert item == {
-        "prediction_id": saved["prediction_id"],
-        "image_id": saved["image_id"],
-        "filename": "cat.png",
-        "class": "cat",
-        "model_version": "stub-v1",
-        "created_at": item["created_at"],
-    }
+    items = response.json()
+    assert [(i["prediction_id"], i["image_id"], i["filename"]) for i in items] == [
+        (saved[1]["prediction_id"], saved[1]["image_id"], "dog.png"),  # новые сверху
+        (saved[0]["prediction_id"], saved[0]["image_id"], "cat.png"),
+    ]
+    assert all(i["class"] == "cat" and i["model_version"] == "stub-v1" and i["created_at"] for i in items)
