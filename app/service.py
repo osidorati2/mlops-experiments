@@ -36,4 +36,4 @@ class ClassificationService:
         )
 
     def history(self) -> list[HistoryItem]:
-        ...
+        return self._repo.history()

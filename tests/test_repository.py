@@ -36,3 +36,21 @@ def test_failed_prediction_insert_rolls_back_image(conn):
 
     assert count_rows(conn, "images") == 0
     assert count_rows(conn, "predictions") == 0
+
+
+def test_history_empty(conn):
+    assert PredictionRepository(conn).history() == []
+
+
+def test_history_joins_filenames_newest_first(conn):
+    repo = PredictionRepository(conn)
+    first = repo.save("cat.png", Prediction("cat", "stub-v1"))
+    second = repo.save("dog.jpg", Prediction("cat", "stub-v1"))
+
+    items = repo.history()
+
+    assert [(i.prediction_id, i.image_id, i.filename) for i in items] == [
+        (second.prediction_id, second.image_id, "dog.jpg"),
+        (first.prediction_id, first.image_id, "cat.png"),
+    ]
+    assert items[0].label == "cat" and items[0].model_version == "stub-v1"

@@ -37,6 +37,20 @@ def predict(file: UploadFile, service: ClassificationService = Depends(get_servi
     )
 
 
-@router.get("/predictions", response_model=list[HistoryItemResponse], response_model_by_alias=True)
-def predictions(service: ClassificationService = Depends(get_service)):
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+@router.get("/history", response_model=list[HistoryItemResponse], response_model_by_alias=True)
+def history(service: ClassificationService = Depends(get_service)):
+    try:
+        items = service.history()
+    except StorageError:
+        raise HTTPException(status_code=500, detail="Failed to load history") from None
+    return [
+        HistoryItemResponse(
+            prediction_id=item.prediction_id,
+            image_id=item.image_id,
+            filename=item.filename,
+            label=item.label,
+            model_version=item.model_version,
+            created_at=item.created_at,
+        )
+        for item in items
+    ]

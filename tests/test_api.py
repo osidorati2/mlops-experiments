@@ -89,3 +89,28 @@ def test_predict_db_failure_returns_500_and_rolls_back(png_bytes):
     assert response.status_code == 500
     assert response.json() == {"detail": "Failed to save result"}
     assert count_rows(app.state.db, "images") == 0
+
+
+def test_history_empty():
+    response = TestClient(create_app()).get("/history")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_history_contains_saved_prediction(png_bytes):
+    client = TestClient(create_app())
+    saved = client.post("/predict", files={"file": ("cat.png", png_bytes, "image/png")}).json()
+
+    response = client.get("/history")
+
+    assert response.status_code == 200
+    [item] = response.json()
+    assert item == {
+        "prediction_id": saved["prediction_id"],
+        "image_id": saved["image_id"],
+        "filename": "cat.png",
+        "class": "cat",
+        "model_version": "stub-v1",
+        "created_at": item["created_at"],
+    }
